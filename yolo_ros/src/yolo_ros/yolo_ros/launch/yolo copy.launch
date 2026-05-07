@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<launch>
+
+  <!-- Load Parameter -->
+  
+  <param name="use_cpu"           value="true" />
+
+  <node pkg="yolo_ros" type="yolo.py" name="yolo_ros" output="screen" >
+    <!-- <param name="weight_path"       value="$(find yolo_ros)/weights/yolov8s.pt"/> -->
+    <param name="weight_path"       value="$(find yolo_ros)/weights/yolo26s.pt"/>
+    <param name="image_topic"       value="/camera/rgb/image_raw" />
+    <param name="pub_topic"         value="/yolo/BoundingBoxes" />
+    <param name="camera_frame"       value="camera_color_frame"/>
+    <param name="visualize"       value="true"/>
+    <param name="conf"              value="0.3" />
+  </node>
+
+</launch>

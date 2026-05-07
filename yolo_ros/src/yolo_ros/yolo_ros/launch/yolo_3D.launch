@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+  <!-- launch 是ROS启动文件的根标签 -->
+
+  <!-- Load Parameter -->
+  <!-- 加载全局参数 -->
+  <param name="use_cpu" value="true" />
+  <!-- 定义一个全局参数 use_cpu = true
+       一般用于控制是否使用CPU推理（true=CPU，false=GPU） -->
+
+  <!-- 启动一个节点 -->
+  <node pkg="yolo_ros" type="yolo_3D.py" name="yolo_ros" output="screen" >
+    <!-- pkg="yolo_ros" ：节点所在的ROS包名
+         type="yolo.py" ：要运行的可执行文件（Python脚本）
+         name="yolo_ros" ：节点名称
+         output="screen" ：日志输出到终端 -->
+
+    <!-- 模型权重路径（下面这一行是注释掉的旧配置） -->
+    <!-- <param name="weight_path" value="$(find yolo_ros)/weights/yolov8s.pt"/> -->
+
+    <!-- 当前使用的YOLO模型权重 -->
+    <param name="weight_path" value="$(find yolo_ros)/weights/yolo26s.pt"/>
+    <!-- $(find yolo_ros) 表示找到该ROS包的路径 -->
+
+    <!-- 输入图像话题 -->
+    <param name="image_topic" value="/camera/rgb/image_raw" />
+    <!-- YOLO从这个topic读取图像数据（通常来自RGB相机） -->
+
+
+    <!-- 输入depth图像话题 -->
+    <param name="depth_topic" value="/camera/depth/image_raw" />
+
+    <!--  -->
+    <param name="camera_info_topic" value="/camera/rgb/camera_info" />
+
+
+    <!-- 输出检测结果的话题 -->
+    <param name="pub_topic" value="/yolo/BoundingBoxes" />
+    <!-- 检测到的目标框会发布到这个topic -->
+
+    <!-- 相机坐标系 -->
+    <param name="camera_frame" value="camera_rgb_optical_frame"/>
+    <!-- 用于TF坐标变换（比如和机器人坐标对齐） -->
+
+    <!-- 是否可视化 -->
+    <param name="visualize" value="true"/>
+    <!-- true表示会显示检测结果窗口 -->
+
+    <!-- 置信度阈值 -->
+    <param name="conf" value="0.3" />
+    <!-- 只有置信度大于0.3的目标才会被保留 -->
+
+  </node>
+
+</launch>
