@@ -1,0 +1,4 @@
+# Python packages installed with pip. ROS packages belong to apt/rosdep.
+numpy
+ultralytics
+rospkg

@@ -1,0 +1,26 @@
+# Catkin build products
+build/
+devel/
+logs/
+.catkin_workspace
+
+# Python and editor caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.vscode/
+.idea/
+
+# ROS/runtime data
+.ros/
+*.bag
+*.bag.active
+*.log
+
+# ML/runtime caches and experiment output
+.cache/
+runs/
+wandb/
+*.onnx
+*.engine

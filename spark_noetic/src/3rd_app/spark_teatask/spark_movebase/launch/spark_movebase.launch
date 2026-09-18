@@ -1,3 +1,0 @@
-<launch>
-  <include file="$(find spark_movebase)/param/move_base.xml" />
-</launch>

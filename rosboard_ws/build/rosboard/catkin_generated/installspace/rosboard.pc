@@ -1,8 +1,0 @@
-prefix=/home/wendy/rosboard_ws/install
-
-Name: rosboard
-Description: Description of rosboard
-Version: 1.3.1
-Cflags: 
-Libs: -L${prefix}/lib 
-Requires: 

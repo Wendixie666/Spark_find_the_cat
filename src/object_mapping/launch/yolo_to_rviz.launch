@@ -1,0 +1,34 @@
+<launch>
+  <arg name="rgb_topic" default="/camera/rgb/image_raw"/>
+  <arg name="depth_topic" default="/camera/depth/image_rect_raw"/>
+  <arg name="camera_info_topic" default="/camera/rgb/camera_info"/>
+  <arg name="model_path" default="$(find yolo_ros)/weights/yolov8s.pt"/>
+  <arg name="target_frame" default="map"/>
+  <arg name="base_frame" default="base_link"/>
+  <arg name="detected_topic" default="/detected_objects"/>
+  <arg name="marker_topic" default="/visualization_marker"/>
+  <arg name="target_class" default="bottle"/>
+  <arg name="inference_confidence" default="0.5"/>
+  <arg name="depth_min_m" default="0.2"/>
+  <arg name="depth_max_m" default="6.0"/>
+  <arg name="cluster_distance_m" default="0.5"/>
+  <arg name="confirmation_hits" default="2"/>
+  <arg name="smoothing_alpha" default="0.2"/>
+  <node name="bottle_mapping" pkg="object_mapping" type="bottle_mapping_node.py" output="screen">
+    <param name="rgb_topic" value="$(arg rgb_topic)"/>
+    <param name="depth_topic" value="$(arg depth_topic)"/>
+    <param name="camera_info_topic" value="$(arg camera_info_topic)"/>
+    <param name="model_path" value="$(arg model_path)"/>
+    <param name="target_frame" value="$(arg target_frame)"/>
+    <param name="base_frame" value="$(arg base_frame)"/>
+    <param name="detected_topic" value="$(arg detected_topic)"/>
+    <param name="marker_topic" value="$(arg marker_topic)"/>
+    <param name="target_class" value="$(arg target_class)"/>
+    <param name="inference_confidence" value="$(arg inference_confidence)"/>
+    <param name="depth_min_m" value="$(arg depth_min_m)"/>
+    <param name="depth_max_m" value="$(arg depth_max_m)"/>
+    <param name="cluster_distance_m" value="$(arg cluster_distance_m)"/>
+    <param name="confirmation_hits" value="$(arg confirmation_hits)"/>
+    <param name="smoothing_alpha" value="$(arg smoothing_alpha)"/>
+  </node>
+</launch>
