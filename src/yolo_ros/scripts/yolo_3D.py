@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""Legacy standalone camera-frame YOLO 3D detector.
+
+Maintained cat search and bottle mapping use ``rgbd_localization`` instead.
+"""
+
 import cv2
 import rospy
 import numpy as np

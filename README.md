@@ -115,6 +115,9 @@ roslaunch yolo_ros yolo.launch
 The maintained cat and bottle nodes run YOLO directly, so `find_cat` does not
 subscribe to a legacy `/yolo/bounding_boxes` parameter.
 
+The older `yolo_3D.py` / `yolo_3D.launch` path is retained as a legacy
+camera-frame detector and is not part of the maintained cat or bottle flows.
+
 ## Important topics and parameters
 
 The launch files expose the camera topics, model path, target frame, and

@@ -11,15 +11,13 @@ import threading
 import numpy as np
 import rospy
 import actionlib
-import tf2_geometry_msgs  # noqa: F401 - registers geometry message conversions
 import tf2_ros
 from actionlib_msgs.msg import GoalStatus
 from cv_bridge import CvBridge
-from geometry_msgs.msg import PointStamped
-from image_geometry import PinholeCameraModel
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from nav_msgs.msg import OccupancyGrid
 from sensor_msgs.msg import CameraInfo, Image
+from rgbd_localization import RgbdLocalizer
 
 try:
     from ultralytics import YOLO
@@ -52,11 +50,9 @@ class FindCatNode:
             return
 
         self.bridge = CvBridge()
-        self.camera_model = PinholeCameraModel()
-        self.camera_frame = ""
-        self.have_camera_info = False
         self.tf_buffer = tf2_ros.Buffer(rospy.Duration(10.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.localizer = RgbdLocalizer(self.tf_buffer, rospy.Duration(0.3))
 
         self.move_base = actionlib.SimpleActionClient("move_base", MoveBaseAction)
         if self.move_base.wait_for_server(rospy.Duration(5.0)):
@@ -143,13 +139,11 @@ class FindCatNode:
 
     def _camera_info_callback(self, msg):
         with self.lock:
-            self.camera_model.fromCameraInfo(msg)
-            self.camera_frame = msg.header.frame_id
-            self.have_camera_info = True
+            self.localizer.update_camera_info(msg)
 
     def _depth_callback(self, msg):
         try:
-            depth = self.bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
+            depth = self.localizer.depth_image(msg)
         except Exception as exc:
             rospy.logwarn_throttle(5.0, "Depth conversion failed: %s", exc)
             return
@@ -178,11 +172,10 @@ class FindCatNode:
             with self.lock:
                 if self.state != self.EXPLORE or self.confirmed_cat is not None:
                     continue
-                if not self.have_camera_info or self.latest_depth is None:
+                if not self.localizer.ready or self.latest_depth is None:
                     continue
                 depth = self.latest_depth.copy()
-                camera_frame = self.camera_frame
-                camera_model = self.camera_model
+                camera_frame = self.localizer.camera_frame
 
             try:
                 image = self.bridge.imgmsg_to_cv2(image_msg, desired_encoding="bgr8")
@@ -205,27 +198,16 @@ class FindCatNode:
                 xyxy = box.xyxy[0].cpu().numpy().astype(int)
                 u = int((xyxy[0] + xyxy[2]) / 2)
                 v = int((xyxy[1] + xyxy[3]) / 2)
-                depth_m = self._depth_value(depth, u, v)
-                if depth_m is None or not self.depth_min <= depth_m <= self.depth_max:
-                    continue
-
-                ray = camera_model.projectPixelTo3dRay((u, v))
-                scale = depth_m / ray[2]
-                point_camera = PointStamped()
-                point_camera.header.frame_id = camera_frame
-                point_camera.header.stamp = rospy.Time(0)
-                point_camera.point.x = ray[0] * scale
-                point_camera.point.y = ray[1] * scale
-                point_camera.point.z = ray[2] * scale
-
-                try:
-                    point_map = self.tf_buffer.transform(
-                        point_camera,
-                        self.target_frame,
-                        rospy.Duration(0.3),
-                    )
-                except Exception as exc:
-                    rospy.logdebug("Cat TF transform failed: %s", exc)
+                point_map = self.localizer.localize(
+                    depth,
+                    (u, v),
+                    self.target_frame,
+                    image_msg.header.stamp,
+                    camera_frame,
+                    self.depth_min,
+                    self.depth_max,
+                )
+                if point_map is None:
                     continue
 
                 self._confirm_cat(
@@ -240,32 +222,6 @@ class FindCatNode:
         if 0 <= class_id < len(names):
             return str(names[class_id]).lower()
         return str(class_id)
-
-    @staticmethod
-    def _depth_value(depth, u, v):
-        height, width = depth.shape[:2]
-        u = max(0, min(width - 1, u))
-        v = max(0, min(height - 1, v))
-
-        def as_meters(value):
-            if depth.dtype == np.uint16:
-                return float(value) * 0.001 if value > 0 else None
-            value = float(value)
-            return value if np.isfinite(value) and value > 0 else None
-
-        value = as_meters(depth[v, u])
-        if value is not None:
-            return value
-
-        for radius in range(1, 6):
-            for dx in range(-radius, radius + 1):
-                for dy in range(-radius, radius + 1):
-                    x, y = u + dx, v + dy
-                    if 0 <= x < width and 0 <= y < height:
-                        value = as_meters(depth[y, x])
-                        if value is not None:
-                            return value
-        return None
 
     def _confirm_cat(self, new_position):
         with self.lock:

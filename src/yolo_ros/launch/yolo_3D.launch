@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <launch>
+  <!-- Legacy standalone camera-frame detector; not used by maintained nodes. -->
   <!-- launch 是ROS启动文件的根标签 -->
 
   <!-- Load Parameter -->

@@ -8,11 +8,11 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   geometry_msgs
   tf2_ros
-  tf2_geometry_msgs
   actionlib
   actionlib_msgs
   move_base_msgs
   cv_bridge
+  rgbd_localization
 )
 
 catkin_package()
