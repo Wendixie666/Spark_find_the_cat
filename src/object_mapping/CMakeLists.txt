@@ -9,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   visualization_msgs
   cv_bridge
+  message_filters
   tf2_ros
   rgbd_localization
   message_generation

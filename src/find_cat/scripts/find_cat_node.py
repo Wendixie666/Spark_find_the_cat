@@ -11,6 +11,7 @@ import threading
 import numpy as np
 import rospy
 import actionlib
+import message_filters
 import tf2_ros
 from actionlib_msgs.msg import GoalStatus
 from cv_bridge import CvBridge
@@ -61,7 +62,6 @@ class FindCatNode:
             rospy.logwarn("move_base is not available yet; navigation will retry")
 
         self.lock = threading.Lock()
-        self.latest_depth = None
         self.latest_map = None
         self.cat_candidates = []
         self.confirmed_cat = None
@@ -69,8 +69,14 @@ class FindCatNode:
         self.state = self.EXPLORE
 
         self.rgb_queue = queue.Queue(maxsize=1)
-        rospy.Subscriber(self.rgb_topic, Image, self._rgb_callback, queue_size=1)
-        rospy.Subscriber(self.depth_topic, Image, self._depth_callback, queue_size=1)
+        self.rgb_subscriber = message_filters.Subscriber(self.rgb_topic, Image)
+        self.depth_subscriber = message_filters.Subscriber(self.depth_topic, Image)
+        self.rgb_depth_sync = message_filters.ApproximateTimeSynchronizer(
+            [self.rgb_subscriber, self.depth_subscriber],
+            self.sync_queue_size,
+            self.sync_slop,
+        )
+        self.rgb_depth_sync.registerCallback(self._rgb_depth_callback)
         rospy.Subscriber(
             self.camera_info_topic,
             CameraInfo,
@@ -113,6 +119,8 @@ class FindCatNode:
         self.target_frame = rospy.get_param("~target_frame", "map")
         self.base_frame = rospy.get_param("~base_frame", "base_link")
         self.explore_node_name = rospy.get_param("~explore_node_name", "/explore")
+        self.sync_queue_size = int(rospy.get_param("~sync_queue_size", 10))
+        self.sync_slop = float(rospy.get_param("~sync_slop", 0.05))
 
         self.coverage_threshold = float(
             rospy.get_param("~coverage_threshold", 0.95)
@@ -141,20 +149,20 @@ class FindCatNode:
         with self.lock:
             self.localizer.update_camera_info(msg)
 
-    def _depth_callback(self, msg):
+    def _rgb_depth_callback(self, rgb_msg, depth_msg):
         try:
-            depth = self.localizer.depth_image(msg)
+            depth = self.localizer.depth_image(depth_msg)
         except Exception as exc:
             rospy.logwarn_throttle(5.0, "Depth conversion failed: %s", exc)
             return
         with self.lock:
-            self.latest_depth = depth
-
-    def _rgb_callback(self, msg):
+            if not self.localizer.ready:
+                return
+            camera_frame = self.localizer.camera_frame
         try:
             if self.rgb_queue.full():
                 self.rgb_queue.get_nowait()
-            self.rgb_queue.put_nowait(msg)
+            self.rgb_queue.put_nowait((rgb_msg, depth, camera_frame))
         except (queue.Empty, queue.Full):
             pass
 
@@ -165,17 +173,13 @@ class FindCatNode:
     def _processing_loop(self):
         while not rospy.is_shutdown():
             try:
-                image_msg = self.rgb_queue.get(timeout=0.5)
+                image_msg, depth, camera_frame = self.rgb_queue.get(timeout=0.5)
             except queue.Empty:
                 continue
 
             with self.lock:
                 if self.state != self.EXPLORE or self.confirmed_cat is not None:
                     continue
-                if not self.localizer.ready or self.latest_depth is None:
-                    continue
-                depth = self.latest_depth.copy()
-                camera_frame = self.localizer.camera_frame
 
             try:
                 image = self.bridge.imgmsg_to_cv2(image_msg, desired_encoding="bgr8")

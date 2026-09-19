@@ -1,5 +1,7 @@
 """ROS adapter for the RGB-D localization module."""
 
+import copy
+
 import rospy
 import tf2_geometry_msgs  # noqa: F401 - registers geometry conversions
 import tf2_ros
@@ -69,7 +71,7 @@ class RgbdLocalizer:
         point_camera.point.z = point[2]
 
         try:
-            return self._transform(point_camera, target_frame, stamp)
+            return self._transform(point_camera, target_frame)
         except (tf2_ros.TransformException, tf2_ros.ConnectivityException,
                 tf2_ros.ExtrapolationException) as exact_error:
             if stamp == rospy.Time(0):
@@ -81,20 +83,17 @@ class RgbdLocalizer:
                 exact_error,
             )
             try:
-                return self._transform(
-                    point_camera,
-                    target_frame,
-                    rospy.Time(0),
-                )
+                latest_point = copy.deepcopy(point_camera)
+                latest_point.header.stamp = rospy.Time(0)
+                return self._transform(latest_point, target_frame)
             except (tf2_ros.TransformException, tf2_ros.ConnectivityException,
                     tf2_ros.ExtrapolationException) as latest_error:
                 rospy.logdebug("RGB-D latest TF transform failed: %s", latest_error)
                 return None
 
-    def _transform(self, point, target_frame, stamp):
+    def _transform(self, point, target_frame):
         return self._tf_buffer.transform(
             point,
             target_frame,
-            stamp,
             self._transform_timeout,
         )

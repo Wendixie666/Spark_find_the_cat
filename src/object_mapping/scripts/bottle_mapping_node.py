@@ -7,6 +7,7 @@ import threading
 
 import numpy as np
 import rospy
+import message_filters
 import tf2_ros
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Pose
@@ -43,7 +44,6 @@ class BottleMappingNode:
             return
 
         self.bridge = CvBridge()
-        self.depth_image = None
         self.lock = threading.Lock()
 
         self.bottle_tracks = []
@@ -52,8 +52,14 @@ class BottleMappingNode:
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.localizer = RgbdLocalizer(self.tf_buffer, rospy.Duration(0.5))
 
-        rospy.Subscriber(self.rgb_topic, Image, self._rgb_callback, queue_size=1)
-        rospy.Subscriber(self.depth_topic, Image, self._depth_callback, queue_size=1)
+        self.rgb_subscriber = message_filters.Subscriber(self.rgb_topic, Image)
+        self.depth_subscriber = message_filters.Subscriber(self.depth_topic, Image)
+        self.rgb_depth_sync = message_filters.ApproximateTimeSynchronizer(
+            [self.rgb_subscriber, self.depth_subscriber],
+            self.sync_queue_size,
+            self.sync_slop,
+        )
+        self.rgb_depth_sync.registerCallback(self._rgb_depth_callback)
         rospy.Subscriber(
             self.camera_info_topic,
             CameraInfo,
@@ -88,6 +94,8 @@ class BottleMappingNode:
         self.camera_info_topic = rospy.get_param(
             "~camera_info_topic", "/camera/rgb/camera_info"
         )
+        self.sync_queue_size = int(rospy.get_param("~sync_queue_size", 10))
+        self.sync_slop = float(rospy.get_param("~sync_slop", 0.05))
         self.target_frame = rospy.get_param("~target_frame", "map")
         self.base_frame = rospy.get_param("~base_frame", "base_link")
         self.marker_topic = rospy.get_param(
@@ -110,20 +118,15 @@ class BottleMappingNode:
         with self.lock:
             self.localizer.update_camera_info(msg)
 
-    def _depth_callback(self, msg):
+    def _rgb_depth_callback(self, msg, depth_msg):
         try:
-            depth = self.localizer.depth_image(msg)
+            depth = self.localizer.depth_image(depth_msg)
         except Exception as exc:
             rospy.logwarn_throttle(5.0, "Depth conversion failed: %s", exc)
             return
         with self.lock:
-            self.depth_image = depth
-
-    def _rgb_callback(self, msg):
-        with self.lock:
-            if not self.localizer.ready or self.depth_image is None:
+            if not self.localizer.ready:
                 return
-            depth = self.depth_image.copy()
             camera_frame = self.localizer.camera_frame
 
         try:
@@ -269,8 +272,8 @@ class BottleMappingNode:
             pose.position.y = transform.transform.translation.y
             pose.position.z = transform.transform.translation.z
             pose.orientation = transform.transform.rotation
-        except Exception:
-            pass
+        except Exception as exc:
+            rospy.logdebug("Robot pose lookup failed: %s", exc)
         return pose
 
 

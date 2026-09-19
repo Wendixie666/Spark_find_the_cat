@@ -1,11 +1,15 @@
 <launch>
-  <arg name="model_path" default="$(find yolo_ros)/weights/yolov8s.pt" />
+  <arg name="model_path" default="yolov8s.pt" />
+  <arg name="sync_queue_size" default="10" />
+  <arg name="sync_slop" default="0.05" />
   <arg name="rgb_topic" default="/camera/rgb/image_raw" />
   <arg name="depth_topic" default="/camera/depth/image_rect_raw" />
   <arg name="camera_info_topic" default="/camera/rgb/camera_info" />
 
   <node pkg="find_cat" type="find_cat_node.py" name="find_cat" output="screen">
     <param name="model_path" value="$(arg model_path)" />
+    <param name="sync_queue_size" value="$(arg sync_queue_size)" />
+    <param name="sync_slop" value="$(arg sync_slop)" />
     <param name="inference_confidence" value="0.5" />
     <param name="target_class" value="cat" />
 

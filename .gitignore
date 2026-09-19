@@ -24,3 +24,4 @@ runs/
 wandb/
 *.onnx
 *.engine
+*.pt

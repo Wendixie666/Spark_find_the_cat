@@ -49,6 +49,7 @@ and permanent RViz markers labelled `Bottle_0`, `Bottle_1`, and so on.
 └── src/
     ├── find_cat/        # exploration state machine and cat navigation
     ├── object_mapping/  # bottle localization and persistent RViz markers
+    ├── rgbd_localization/ # shared RGB-D projection and TF adapter
     ├── yolo_ros/        # optional image/bounding-box bridge
     └── yolo_ros_msgs/   # messages used by yolo_ros
 ```
@@ -64,7 +65,7 @@ full Spark workspace are intentionally not part of the maintained project.
 - `explore_lite` for autonomous exploration
 - Python 3 and the packages in [`requirements.txt`](requirements.txt)
 - An RGB-D source publishing aligned RGB/depth images and camera info
-- A model file such as `src/yolo_ros/weights/yolov8s.pt`
+- A YOLO model file, passed through the `model_path` launch argument
 
 ROS dependencies should be installed with `apt`/`rosdep`; do not put them in
 the pip requirements file.
@@ -98,11 +99,15 @@ first. Then run either maintained capability:
 
 ```bash
 # Persistent bottle markers in RViz
-roslaunch object_mapping yolo_to_rviz.launch
+roslaunch object_mapping bottle_mapping.launch model_path:=/path/to/yolov8s.pt
 
 # Autonomous cat search and navigation
 roslaunch find_cat find_cat.launch
 ```
+
+`yolo_to_rviz.launch` remains as a compatibility alias for
+`bottle_mapping.launch`. The maintained nodes do not require the optional
+`yolo_ros` package; pass a local model path when running offline.
 
 The `yolo_ros` package is optional. It publishes the project's custom
 `yolo_ros_msgs/BoundingBoxes` stream for setups that want a standalone YOLO
