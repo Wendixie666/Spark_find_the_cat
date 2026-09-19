@@ -4,6 +4,9 @@ devel/
 logs/
 .catkin_workspace
 
+# Local agent/workspace instructions
+.codex/
+
 # Python and editor caches
 __pycache__/
 *.py[cod]
