@@ -29,7 +29,8 @@ presented as original project media.
 
 ## License notes
 
-- Root repository materials: Apache License 2.0, see [`LICENSE`](LICENSE).
-- Individual ROS package licenses are declared in each `src/*/package.xml`.
+- The repository and maintained ROS packages (`find_cat`, `object_mapping`,
+  and `rgbd_localization`) use Apache License 2.0; see [`LICENSE`](LICENSE).
+- Retained upstream ROS packages declare their own licenses in `package.xml`.
 - Upstream code, messages, and media remain subject to their upstream license
   and attribution requirements.

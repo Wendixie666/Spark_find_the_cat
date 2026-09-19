@@ -5,7 +5,7 @@
   <description>Autonomous exploration, cat confirmation, and target navigation.</description>
 
   <maintainer email="wendy@example.com">wendy</maintainer>
-  <license>MIT</license>
+  <license>Apache-2.0</license>
 
   <buildtool_depend>catkin</buildtool_depend>
 

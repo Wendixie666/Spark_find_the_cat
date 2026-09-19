@@ -7,6 +7,10 @@ logs/
 # Local agent/workspace instructions
 .codex/
 
+# One-off document-processing artifacts
+tmp/
+output/
+
 # Python and editor caches
 __pycache__/
 *.py[cod]

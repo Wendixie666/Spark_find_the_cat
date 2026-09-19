@@ -4,7 +4,7 @@
   <version>0.0.1</version>
   <description>RGB-D bottle localization and persistent RViz mapping.</description>
   <maintainer email="wendy@example.com">wendy</maintainer>
-  <license>MIT</license>
+  <license>Apache-2.0</license>
   <buildtool_depend>catkin</buildtool_depend>
 
   <depend>rospy</depend>
