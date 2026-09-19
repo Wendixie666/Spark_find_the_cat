@@ -21,7 +21,7 @@ def _as_bool(value):
 
 class YoloDetector:
     def __init__(self):
-        weight_path = rospy.get_param("~weight_path", "yolov8s.pt")
+        weight_path = rospy.get_param("~weight_path", "yolov8n.pt")
         image_topic = rospy.get_param("~image_topic", "/camera/rgb/image_raw")
         pub_topic = rospy.get_param("~pub_topic", "/yolo/BoundingBoxes")
         self.camera_frame = rospy.get_param("~camera_frame", "")

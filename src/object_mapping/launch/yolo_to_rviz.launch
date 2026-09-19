@@ -1,10 +1,8 @@
 <launch>
   <arg name="rgb_topic" default="/camera/rgb/image_raw"/>
-  <arg name="depth_topic" default="/camera/depth/image_rect_raw"/>
+  <arg name="depth_topic" default="/camera/depth/image_raw"/>
   <arg name="camera_info_topic" default="/camera/rgb/camera_info"/>
-  <arg name="model_path" default="yolov8s.pt"/>
-  <arg name="sync_queue_size" default="10"/>
-  <arg name="sync_slop" default="0.05"/>
+  <arg name="model_path" default="yolov8n.pt"/>
   <arg name="target_frame" default="map"/>
   <arg name="base_frame" default="base_link"/>
   <arg name="detected_topic" default="/detected_objects"/>
@@ -12,17 +10,15 @@
   <arg name="target_class" default="bottle"/>
   <arg name="inference_confidence" default="0.5"/>
   <arg name="depth_min_m" default="0.2"/>
-  <arg name="depth_max_m" default="6.0"/>
-  <arg name="cluster_distance_m" default="0.5"/>
-  <arg name="confirmation_hits" default="2"/>
+  <arg name="depth_max_m" default="2.0"/>
+  <arg name="cluster_distance_m" default="1.3"/>
+  <arg name="confirmation_hits" default="1"/>
   <arg name="smoothing_alpha" default="0.2"/>
   <include file="$(find object_mapping)/launch/bottle_mapping.launch">
     <arg name="rgb_topic" value="$(arg rgb_topic)"/>
     <arg name="depth_topic" value="$(arg depth_topic)"/>
     <arg name="camera_info_topic" value="$(arg camera_info_topic)"/>
     <arg name="model_path" value="$(arg model_path)"/>
-    <arg name="sync_queue_size" value="$(arg sync_queue_size)"/>
-    <arg name="sync_slop" value="$(arg sync_slop)"/>
     <arg name="target_frame" value="$(arg target_frame)"/>
     <arg name="base_frame" value="$(arg base_frame)"/>
     <arg name="detected_topic" value="$(arg detected_topic)"/>

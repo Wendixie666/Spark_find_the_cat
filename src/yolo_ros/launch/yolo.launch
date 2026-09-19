@@ -5,6 +5,7 @@
   <!-- Load Parameter -->
   <!-- 加载全局参数 -->
   <param name="use_cpu" value="true" />
+  <arg name="weight_path" default="$(find yolo_ros)/weights/yolo26s.pt" />
   <!-- 定义一个全局参数 use_cpu = true
        一般用于控制是否使用CPU推理（true=CPU，false=GPU） -->
 
@@ -19,7 +20,7 @@
     <!-- <param name="weight_path" value="$(find yolo_ros)/weights/yolov8s.pt"/> -->
 
     <!-- 当前使用的YOLO模型权重 -->
-    <param name="weight_path" value="$(find yolo_ros)/weights/yolo26s.pt"/>
+    <param name="weight_path" value="$(arg weight_path)"/>
     <!-- $(find yolo_ros) 表示找到该ROS包的路径 -->
 
     <!-- 输入图像话题 -->

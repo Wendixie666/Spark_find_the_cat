@@ -7,7 +7,6 @@ import threading
 
 import numpy as np
 import rospy
-import message_filters
 import tf2_ros
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Pose
@@ -48,18 +47,23 @@ class BottleMappingNode:
 
         self.bottle_tracks = []
         self.next_marker_id = 0
+        self.latest_depth = None
         self.tf_buffer = tf2_ros.Buffer(rospy.Duration(10.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.localizer = RgbdLocalizer(self.tf_buffer, rospy.Duration(0.5))
 
-        self.rgb_subscriber = message_filters.Subscriber(self.rgb_topic, Image)
-        self.depth_subscriber = message_filters.Subscriber(self.depth_topic, Image)
-        self.rgb_depth_sync = message_filters.ApproximateTimeSynchronizer(
-            [self.rgb_subscriber, self.depth_subscriber],
-            self.sync_queue_size,
-            self.sync_slop,
+        rospy.Subscriber(
+            self.rgb_topic,
+            Image,
+            self._rgb_callback,
+            queue_size=1,
         )
-        self.rgb_depth_sync.registerCallback(self._rgb_depth_callback)
+        rospy.Subscriber(
+            self.depth_topic,
+            Image,
+            self._depth_callback,
+            queue_size=1,
+        )
         rospy.Subscriber(
             self.camera_info_topic,
             CameraInfo,
@@ -82,20 +86,16 @@ class BottleMappingNode:
         rospy.spin()
 
     def _load_params(self):
-        self.model_path = rospy.get_param("~model_path", "yolov8s.pt")
+        self.model_path = rospy.get_param("~model_path", "yolov8n.pt")
         self.inference_confidence = float(
             rospy.get_param("~inference_confidence", 0.5)
         )
         self.target_class = str(rospy.get_param("~target_class", "bottle")).lower()
         self.rgb_topic = rospy.get_param("~rgb_topic", "/camera/rgb/image_raw")
-        self.depth_topic = rospy.get_param(
-            "~depth_topic", "/camera/depth/image_rect_raw"
-        )
+        self.depth_topic = rospy.get_param("~depth_topic", "/camera/depth/image_raw")
         self.camera_info_topic = rospy.get_param(
             "~camera_info_topic", "/camera/rgb/camera_info"
         )
-        self.sync_queue_size = int(rospy.get_param("~sync_queue_size", 10))
-        self.sync_slop = float(rospy.get_param("~sync_slop", 0.05))
         self.target_frame = rospy.get_param("~target_frame", "map")
         self.base_frame = rospy.get_param("~base_frame", "base_link")
         self.marker_topic = rospy.get_param(
@@ -105,11 +105,9 @@ class BottleMappingNode:
             "~detected_topic", "/detected_objects"
         )
         self.depth_min = float(rospy.get_param("~depth_min_m", 0.20))
-        self.depth_max = float(rospy.get_param("~depth_max_m", 6.0))
-        self.cluster_distance = float(
-            rospy.get_param("~cluster_distance_m", 0.50)
-        )
-        self.confirmation_hits = int(rospy.get_param("~confirmation_hits", 2))
+        self.depth_max = float(rospy.get_param("~depth_max_m", 2.0))
+        self.cluster_distance = float(rospy.get_param("~cluster_distance_m", 1.3))
+        self.confirmation_hits = int(rospy.get_param("~confirmation_hits", 1))
         self.smoothing_alpha = float(rospy.get_param("~smoothing_alpha", 0.20))
         self.marker_scale = float(rospy.get_param("~marker_scale_m", 0.15))
         self.label_height = float(rospy.get_param("~label_height_m", 0.20))
@@ -118,15 +116,20 @@ class BottleMappingNode:
         with self.lock:
             self.localizer.update_camera_info(msg)
 
-    def _rgb_depth_callback(self, msg, depth_msg):
+    def _depth_callback(self, msg):
         try:
-            depth = self.localizer.depth_image(depth_msg)
+            depth = self.localizer.depth_image(msg)
         except Exception as exc:
             rospy.logwarn_throttle(5.0, "Depth conversion failed: %s", exc)
             return
         with self.lock:
-            if not self.localizer.ready:
+            self.latest_depth = depth
+
+    def _rgb_callback(self, msg):
+        with self.lock:
+            if not self.localizer.ready or self.latest_depth is None:
                 return
+            depth = self.latest_depth.copy()
             camera_frame = self.localizer.camera_frame
 
         try:
@@ -160,7 +163,7 @@ class BottleMappingNode:
                 depth,
                 (u, v),
                 self.target_frame,
-                msg.header.stamp,
+                rospy.Time(0),
                 camera_frame,
                 self.depth_min,
                 self.depth_max,
@@ -206,7 +209,8 @@ class BottleMappingNode:
                 + self.smoothing_alpha * new_position
             )
             track["hits"] += 1
-            if track["hits"] == self.confirmation_hits:
+            if track["hits"] >= self.confirmation_hits and not track["active"]:
+                track["active"] = True
                 rospy.loginfo(
                     "Confirmed Bottle_%d at (%.2f, %.2f, %.2f)",
                     track["id"],
@@ -218,6 +222,7 @@ class BottleMappingNode:
             "id": self.next_marker_id,
             "position": new_position,
             "hits": 1,
+            "active": False,
         }
         self.next_marker_id += 1
         self.bottle_tracks.append(track)
@@ -225,7 +230,7 @@ class BottleMappingNode:
 
     def _publish_markers(self, object_id, position, stamp):
         track = next(track for track in self.bottle_tracks if track["id"] == object_id)
-        if track["hits"] < self.confirmation_hits:
+        if not track["active"]:
             return
 
         marker = Marker()

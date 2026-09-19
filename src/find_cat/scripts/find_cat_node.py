@@ -11,7 +11,6 @@ import threading
 import numpy as np
 import rospy
 import actionlib
-import message_filters
 import tf2_ros
 from actionlib_msgs.msg import GoalStatus
 from cv_bridge import CvBridge
@@ -63,20 +62,25 @@ class FindCatNode:
 
         self.lock = threading.Lock()
         self.latest_map = None
+        self.latest_depth = None
         self.cat_candidates = []
         self.confirmed_cat = None
         self.explore_stopped = False
         self.state = self.EXPLORE
 
         self.rgb_queue = queue.Queue(maxsize=1)
-        self.rgb_subscriber = message_filters.Subscriber(self.rgb_topic, Image)
-        self.depth_subscriber = message_filters.Subscriber(self.depth_topic, Image)
-        self.rgb_depth_sync = message_filters.ApproximateTimeSynchronizer(
-            [self.rgb_subscriber, self.depth_subscriber],
-            self.sync_queue_size,
-            self.sync_slop,
+        rospy.Subscriber(
+            self.rgb_topic,
+            Image,
+            self._rgb_callback,
+            queue_size=1,
         )
-        self.rgb_depth_sync.registerCallback(self._rgb_depth_callback)
+        rospy.Subscriber(
+            self.depth_topic,
+            Image,
+            self._depth_callback,
+            queue_size=1,
+        )
         rospy.Subscriber(
             self.camera_info_topic,
             CameraInfo,
@@ -102,16 +106,14 @@ class FindCatNode:
     def _load_params(self):
         """Load the public ROS parameters used by this node."""
 
-        self.model_path = rospy.get_param("~model_path", "yolov8s.pt")
+        self.model_path = rospy.get_param("~model_path", "yolov8n.pt")
         self.inference_confidence = float(
             rospy.get_param("~inference_confidence", 0.5)
         )
         self.target_class = str(rospy.get_param("~target_class", "cat")).lower()
 
         self.rgb_topic = rospy.get_param("~rgb_topic", "/camera/rgb/image_raw")
-        self.depth_topic = rospy.get_param(
-            "~depth_topic", "/camera/depth/image_rect_raw"
-        )
+        self.depth_topic = rospy.get_param("~depth_topic", "/camera/depth/image_raw")
         self.camera_info_topic = rospy.get_param(
             "~camera_info_topic", "/camera/rgb/camera_info"
         )
@@ -119,27 +121,17 @@ class FindCatNode:
         self.target_frame = rospy.get_param("~target_frame", "map")
         self.base_frame = rospy.get_param("~base_frame", "base_link")
         self.explore_node_name = rospy.get_param("~explore_node_name", "/explore")
-        self.sync_queue_size = int(rospy.get_param("~sync_queue_size", 10))
-        self.sync_slop = float(rospy.get_param("~sync_slop", 0.05))
-
         self.coverage_threshold = float(
-            rospy.get_param("~coverage_threshold", 0.95)
+            rospy.get_param("~coverage_threshold", 0.9)
         )
-        self.coverage_origin_x = float(
-            rospy.get_param("~coverage_origin_x", 0.15)
-        )
-        self.coverage_origin_y = float(
-            rospy.get_param("~coverage_origin_y", 0.15)
-        )
-        self.coverage_width = float(rospy.get_param("~coverage_width_m", 3.60))
-        self.coverage_height = float(rospy.get_param("~coverage_height_m", 5.80))
+        self.lab_width = float(rospy.get_param("~lab_width_m", 5.1))
+        self.lab_height = float(rospy.get_param("~lab_height_m", 3.6))
+        self.lab_area = self.lab_width * self.lab_height
 
         self.confirmation_hits = int(rospy.get_param("~confirmation_hits", 3))
-        self.cluster_distance = float(
-            rospy.get_param("~cluster_distance_m", 0.30)
-        )
-        self.depth_min = float(rospy.get_param("~depth_min_m", 0.20))
-        self.depth_max = float(rospy.get_param("~depth_max_m", 6.0))
+        self.cluster_distance = float(rospy.get_param("~cluster_distance_m", 0.5))
+        self.depth_min = float(rospy.get_param("~depth_min_m", 0.3))
+        self.depth_max = float(rospy.get_param("~depth_max_m", 4.0))
         self.arrival_distance = float(
             rospy.get_param("~arrival_distance_m", 0.50)
         )
@@ -149,15 +141,20 @@ class FindCatNode:
         with self.lock:
             self.localizer.update_camera_info(msg)
 
-    def _rgb_depth_callback(self, rgb_msg, depth_msg):
+    def _depth_callback(self, msg):
         try:
-            depth = self.localizer.depth_image(depth_msg)
+            depth = self.localizer.depth_image(msg)
         except Exception as exc:
             rospy.logwarn_throttle(5.0, "Depth conversion failed: %s", exc)
             return
         with self.lock:
-            if not self.localizer.ready:
+            self.latest_depth = depth
+
+    def _rgb_callback(self, rgb_msg):
+        with self.lock:
+            if not self.localizer.ready or self.latest_depth is None:
                 return
+            depth = self.latest_depth.copy()
             camera_frame = self.localizer.camera_frame
         try:
             if self.rgb_queue.full():
@@ -206,7 +203,7 @@ class FindCatNode:
                     depth,
                     (u, v),
                     self.target_frame,
-                    image_msg.header.stamp,
+                    rospy.Time(0),
                     camera_frame,
                     self.depth_min,
                     self.depth_max,
@@ -259,22 +256,9 @@ class FindCatNode:
         width = grid.info.width
         height = grid.info.height
         data = np.asarray(grid.data, dtype=np.int8).reshape((height, width))
-        min_x = self.coverage_origin_x
-        min_y = self.coverage_origin_y
-        max_x = min_x + self.coverage_width
-        max_y = min_y + self.coverage_height
-        map_x = grid.info.origin.position.x
-        map_y = grid.info.origin.position.y
-
-        x0 = max(0, int(math.floor((min_x - map_x) / resolution)))
-        y0 = max(0, int(math.floor((min_y - map_y) / resolution)))
-        x1 = min(width, int(math.ceil((max_x - map_x) / resolution)))
-        y1 = min(height, int(math.ceil((max_y - map_y) / resolution)))
-        if x0 >= x1 or y0 >= y1:
-            return 0.0
-
-        roi = data[y0:y1, x0:x1]
-        return float(np.count_nonzero(roi != -1)) / float(roi.size)
+        known = np.count_nonzero(data != -1)
+        known_area = known * resolution * resolution
+        return min(1.0, float(known_area) / self.lab_area)
 
     def _state_machine(self, _event):
         if self.state == self.EXPLORE:

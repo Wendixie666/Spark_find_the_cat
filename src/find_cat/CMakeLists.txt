@@ -12,7 +12,6 @@ find_package(catkin REQUIRED COMPONENTS
   actionlib_msgs
   move_base_msgs
   cv_bridge
-  message_filters
   rgbd_localization
 )
 
