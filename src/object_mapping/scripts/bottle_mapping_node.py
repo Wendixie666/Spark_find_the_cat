@@ -86,7 +86,7 @@ class BottleMappingNode:
         rospy.spin()
 
     def _load_params(self):
-        self.model_path = rospy.get_param("~model_path", "yolov8n.pt")
+        self.model_path = rospy.get_param("~model_path", "yolo26s.pt")
         self.inference_confidence = float(
             rospy.get_param("~inference_confidence", 0.5)
         )

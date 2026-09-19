@@ -1,5 +1,5 @@
 <launch>
-  <arg name="model_path" default="yolov8n.pt" />
+  <arg name="model_path" default="yolo26s.pt" />
   <arg name="rgb_topic" default="/camera/rgb/image_raw" />
   <arg name="depth_topic" default="/camera/depth/image_rect_raw" />
   <arg name="camera_info_topic" default="/camera/depth/camera_info" />
@@ -16,7 +16,7 @@
     <param name="target_frame" value="map" />
     <param name="base_frame" value="base_link" />
 
-    <param name="coverage_threshold" value="0.95" />
+    <param name="coverage_threshold" value="0.90" />
     <param name="lab_width_m" value="5.1" />
     <param name="lab_height_m" value="3.6" />
 

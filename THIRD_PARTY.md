@@ -7,6 +7,7 @@ explicit.
 | Component | Use in this project | Attribution |
 | --- | --- | --- |
 | NXROBO Spark ROS Noetic | Robot hardware, RGB-D camera, TF, SLAM/RTAB-Map, navigation, and bring-up | [NXROBO/spark_noetic](https://github.com/NXROBO/spark_noetic) |
+| `frontier_exploration` | Frontier exploration used by the final Spark snapshot | [paulbovbel/frontier_exploration](https://github.com/paulbovbel/frontier_exploration) |
 | `explore_lite` | Frontier-based autonomous exploration | [hrnr/m-explore](https://github.com/hrnr/m-explore) |
 | `move_base` | Navigation action used by the cat-search flow | ROS navigation stack |
 | YOLO ROS bridge | Reference for the optional `yolo_ros` bridge and bounding-box messages | [HT-hlf/yolo_ros](https://github.com/HT-hlf/yolo_ros) |

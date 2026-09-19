@@ -106,7 +106,7 @@ class FindCatNode:
     def _load_params(self):
         """Load the public ROS parameters used by this node."""
 
-        self.model_path = rospy.get_param("~model_path", "yolov8n.pt")
+        self.model_path = rospy.get_param("~model_path", "yolo26s.pt")
         self.inference_confidence = float(
             rospy.get_param("~inference_confidence", 0.5)
         )
@@ -120,7 +120,19 @@ class FindCatNode:
         self.map_topic = rospy.get_param("~map_topic", "/map")
         self.target_frame = rospy.get_param("~target_frame", "map")
         self.base_frame = rospy.get_param("~base_frame", "base_link")
-        self.explore_node_name = rospy.get_param("~explore_node_name", "/explore")
+        # m-explore uses ``/explore``.  The final Spark snapshot launches the
+        # frontier_exploration client/server as ``/explore_client`` and
+        # ``/explore_server``.  Keep the old single-name parameter working,
+        # while making the platform runtime work out of the box too.
+        configured_nodes = rospy.get_param("~explore_node_names", None)
+        if configured_nodes is None:
+            legacy_name = rospy.get_param("~explore_node_name", "/explore")
+            configured_nodes = [legacy_name]
+            if legacy_name == "/explore":
+                configured_nodes.extend(("/explore_client", "/explore_server"))
+        elif isinstance(configured_nodes, str):
+            configured_nodes = [name.strip() for name in configured_nodes.split(",")]
+        self.explore_node_names = [str(name) for name in configured_nodes if str(name)]
         self.coverage_threshold = float(
             rospy.get_param("~coverage_threshold", 0.9)
         )
@@ -277,6 +289,9 @@ class FindCatNode:
 
             self.state = self.NAVIGATE
             self._stop_exploration()
+            # Allow the exploration node and move_base to finish clearing
+            # their previous goals before submitting the cat goal.
+            rospy.sleep(3.0)
             self._send_navigation_goal(cat_position)
             return
 
@@ -304,18 +319,20 @@ class FindCatNode:
             return
         self.explore_stopped = True
         self.move_base.cancel_all_goals()
-        if not self.explore_node_name:
+        if not self.explore_node_names:
             return
-        try:
-            subprocess.run(
-                ["rosnode", "kill", self.explore_node_name],
-                check=False,
-                capture_output=True,
-                timeout=3.0,
-            )
-            rospy.loginfo("Stopped explore node %s", self.explore_node_name)
-        except (OSError, subprocess.SubprocessError) as exc:
-            rospy.logwarn("Could not stop explore node: %s", exc)
+        for node_name in self.explore_node_names:
+            try:
+                result = subprocess.run(
+                    ["rosnode", "kill", node_name],
+                    check=False,
+                    capture_output=True,
+                    timeout=3.0,
+                )
+                if result.returncode == 0:
+                    rospy.loginfo("Stopped explore node %s", node_name)
+            except (OSError, subprocess.SubprocessError) as exc:
+                rospy.logwarn("Could not stop explore node %s: %s", node_name, exc)
 
     def _fail(self, reason):
         if self.state == self.FAILED:

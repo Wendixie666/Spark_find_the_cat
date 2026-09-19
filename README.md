@@ -32,7 +32,7 @@ RGB-D camera → YOLO detection → pixel + depth → 3D camera point → TF →
        ├── bottle detections → stable RViz markers              │
        └── cat detections → confirmation → stop exploration → move_base
 
-RTAB-Map / SLAM → map coverage → explore_lite → find_cat state machine
+RTAB-Map / SLAM → map coverage → compatible exploration backend → find_cat state machine
 ```
 
 ## What we built / upstream components
@@ -43,7 +43,7 @@ RTAB-Map / SLAM → map coverage → explore_lite → find_cat state machine
 | `object_mapping` | RGB-D bottle localization, spatial deduplication, smoothing, repeated-hit confirmation, and persistent RViz markers | Course project implementation |
 | `rgbd_localization` | Shared pixel/depth projection and camera-to-`map` TF conversion | Course project implementation |
 | [NXROBO Spark](https://github.com/NXROBO/spark_noetic) | Robot drivers, RGB-D camera, TF, SLAM/RTAB-Map, hardware bring-up, and navigation runtime | Upstream platform |
-| [`explore_lite`](https://github.com/hrnr/m-explore) | Frontier-based autonomous exploration | Upstream ROS component |
+| `frontier_exploration` / [`explore_lite`](https://github.com/hrnr/m-explore) | Frontier-based autonomous exploration | Upstream ROS component |
 | `move_base` | Navigation action used to approach the confirmed cat location | Upstream ROS component |
 | [`yolo_ros`](https://github.com/HT-hlf/yolo_ros) | Reference for the optional YOLO ROS bridge and bounding-box messages | Adapted/reference component |
 | [Rosboard](https://github.com/dheera/rosboard) | Runtime visualization used during development and demonstration | External tool |
@@ -92,7 +92,7 @@ The full demo video is intentionally left as a placeholder in the
 - Ubuntu 20.04
 - ROS Noetic with `catkin`, `tf2`, `cv_bridge`, `image_geometry`, `actionlib`,
   `move_base`, and the message packages used by the nodes
-- `explore_lite` for autonomous exploration
+- `frontier_exploration` or `explore_lite` for autonomous exploration
 - Python 3 and the packages in [`requirements.txt`](requirements.txt)
 - An RGB-D source publishing the topics required by the selected launch file
 - A compatible YOLO model file passed through the `model_path` launch argument
@@ -135,7 +135,7 @@ roslaunch find_cat find_cat.launch model_path:=/path/to/model.pt
 ```
 
 The maintained launches do not start the robot driver, camera, TF, SLAM,
-`explore_lite`, or `move_base`. Those services must already be available from
+any exploration backend, or `move_base`. Those services must already be available from
 the external Spark platform or an equivalent ROS setup.
 
 `yolo_to_rviz.launch` remains a compatibility alias for
@@ -174,17 +174,19 @@ Cat-search parameters include `coverage_threshold`, `confirmation_hits`,
 ## Original deployment and current maintained status
 
 The presentation describes the original final demo, while the launch files
-contain the current maintained defaults. They are not identical:
+contain the current maintained defaults:
 
 | Item | Original final demo | Current repository |
 | --- | --- | --- |
-| YOLO model | YOLO26s | `find_cat` and `object_mapping` default to `yolov8n.pt`; optional `yolo_ros` defaults to `yolo26s.pt` |
-| Exploration coverage before navigation | 90% | `find_cat.launch` defaults to `0.95` |
-| Model files present in the repository | — | `yolo26s.pt` and `yolov8s.pt`; `yolov8n.pt` is not bundled |
+| YOLO model | YOLO26s | `find_cat` and `object_mapping` default to `yolo26s.pt` |
+| Exploration coverage before navigation | 90% | `find_cat.launch` defaults to `0.90` |
+| Model files present in the repository | — | `yolo26s.pt` and `yolov8s.pt` |
 
-Pass `model_path:=/path/to/model.pt` explicitly when using the maintained
-launches. The original commands and their current package-name equivalents are
-recorded in [`docs/original_runtime.md`](docs/original_runtime.md).
+The bundled YOLO26s weights are at
+`src/yolo_ros/weights/yolo26s.pt`. For offline or reproducible runs, pass that
+absolute path explicitly with `model_path:=/path/to/yolo26s.pt`. The original
+commands and their current package-name equivalents are recorded in
+[`docs/original_runtime.md`](docs/original_runtime.md).
 
 The course presentation is available at
 [`docs/Final+pre.pptx`](docs/Final+pre.pptx).
@@ -219,7 +221,7 @@ full Spark workspace are intentionally not part of the maintained project.
 ## Current limitations
 
 - The repository does not include Spark hardware drivers, a complete Gazebo
-  world, SLAM, `explore_lite`, or `move_base` configuration.
+  world, SLAM, an exploration backend, or `move_base` configuration.
 - Each maintained node subscribes to RGB and depth independently and uses the
   latest depth frame, matching the original Spark implementation. If the
   camera publishes different topic names, pass launch arguments or parameters.
